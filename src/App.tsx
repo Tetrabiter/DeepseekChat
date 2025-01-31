@@ -1,71 +1,112 @@
 import { useState } from "react";
-import { FaLocationArrow } from "react-icons/fa";
-import { FaStop } from "react-icons/fa";
-import { FaPaperclip } from "react-icons/fa";
-
+import { FaLocationArrow, FaStop, FaPaperclip } from "react-icons/fa";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { solarizedlight } from "react-syntax-highlighter/dist/esm/styles/prism"; // или другой стиль подсветки
 
 async function generateResponse(question: string) {
-  const response = await fetch("http://localhost:11434/api/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "deepseek-r1", prompt: question }),
-  });
+  try {
+    const response = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "deepseek-r1", prompt: question }),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Ошибка при получении ответа от сервера");
+    }
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch response');
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = "";
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader?.read() || {};
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n").filter((p) => p.trim() !== "");
+
+      for (let i = 0; i < parts.length; i++) {
+        try {
+          const json = JSON.parse(parts[i].trim());
+          if (json.response) fullResponse += json.response;
+          buffer = "";
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (error) {
+          console.warn("Ошибка парсинга JSON:", parts[i]);
+          buffer = parts[i];
+        }
+      }
+    }
+
+    return fullResponse.trim();
+  } catch (error) {
+    console.error(error);
+    return "Ошибка при получении ответа.";
   }
-
-  const reader = response.body?.getReader();
-  let fullResponse = '';
-  const decoder = new TextDecoder(); // Декодирует полученные данные
-
-  while (true) {
-    const { value, done } = await reader?.read() || {};  // Читаем данные
-    if (done) break;  // Завершаем, если данных больше нет
-
-    fullResponse += decoder.decode(value, { stream: true });  // Добавляем к накопленному ответу
-  }
-
-  return fullResponse.trim();  // Убираем лишние пробелы в начале и в конце
 }
 
-
-
+type Message = {
+  text: string;
+  sender: "user" | "bot"; // Строгая типизация для sender
+};
 
 export default function ChatComponent() {
-  const [messages, setMessages] = useState<{ text: string; sender: "user" | "bot" }[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isLoading) return;
 
-    // Обновление состояния с типами "user" и "bot"
-    const userMessage: { text: string; sender: "user" } = { text: input, sender: "user" };
+    const userMessage: Message = { text: input, sender: "user" };
     setMessages((prev) => [...prev, userMessage]);
-
     setInput("");
+    setIsLoading(true);
 
     const botResponse = await generateResponse(input);
 
-    // Обновление состояния с типами "user" и "bot"
-    const botMessage: { text: string; sender: "bot" } = { text: botResponse, sender: "bot" };
+    const botMessage: Message = { text: botResponse, sender: "bot" };
     setMessages((prev) => [...prev, botMessage]);
+    setIsLoading(false);
   };
+
+  const formatMessage = (message: string) => {
+    // Проверка на наличие кода (можно улучшить с помощью регулярных выражений)
+    const codeRegex = /```(.*?)```/gs;
+    return message.split(codeRegex).map((part, index) => {
+      if (index % 2 === 1) {
+        // Это код внутри тройных обратных кавычек
+        return (
+          <SyntaxHighlighter key={index} language="javascript" style={solarizedlight}>
+            {part}
+          </SyntaxHighlighter>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
 
   return (
     <div className="w-full h-screen font-sans bg-white p-4 rounded-lg shadow-lg">
       <div className="w-[70%] mx-auto pt-[10%]">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">🗨️ Roma Gay Chat</h2>
-        <div className="border border-gray-300 p-4 h-[40vh] overflow-y-auto mb-4 rounded-lg bg-gray-50">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">🗨️ Roma Monstr GPT</h2>
+        <div className="border border-gray-300 p-4 h-[60vh] overflow-y-auto mb-4 rounded-lg bg-gray-50">
           {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`mb-2 ${msg.sender === "user" ? "text-right" : "text-left"}`}
-            >
+            <div key={idx} className={`mb-2 ${msg.sender === "user" ? "text-right" : "text-left"}`}>
               <p className={`font-semibold ${msg.sender === "user" ? "text-blue-500" : "text-green-500"}`}>
-                {msg.sender === "user" ? "Вы" : "RomaGayGpt"}:
+                {msg.sender === "user" ? "Вы" : "128 баллов на ЕНТ"}:
               </p>
-              <p className="text-gray-700">{msg.text}</p>
+              <p className="text-gray-700">{formatMessage(msg.text)}</p>
             </div>
           ))}
         </div>
@@ -73,24 +114,28 @@ export default function ChatComponent() {
           <input
             type="text"
             value={input}
+            onKeyDown={handleKeyDown}
             onChange={(e) => setInput(e.target.value)}
             className="w-full p-2 border border-gray-300 rounded-lg mr-2"
             placeholder="Введите сообщение..."
           />
           <button
             onClick={handleSend}
+            disabled={isLoading}
             className="px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600"
           >
             <FaPaperclip />
           </button>
           <button
             onClick={handleSend}
+            disabled={isLoading}
             className="px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600"
           >
             <FaStop />
           </button>
           <button
             onClick={handleSend}
+            disabled={isLoading}
             className="px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600"
           >
             <FaLocationArrow />
