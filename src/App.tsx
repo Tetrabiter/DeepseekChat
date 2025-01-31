@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { FaLocationArrow, FaStop, FaPaperclip } from "react-icons/fa";
+import { GiArtificialHive } from "react-icons/gi";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { solarizedlight } from "react-syntax-highlighter/dist/esm/styles/prism"; // или другой стиль подсветки
+import { anOldHope } from "react-syntax-highlighter/dist/esm/styles/hljs"; // или другой стиль подсветки
 
 async function generateResponse(question: string) {
   try {
@@ -79,7 +80,7 @@ export default function ChatComponent() {
       if (index % 2 === 1) {
         // Это код внутри тройных обратных кавычек
         return (
-          <SyntaxHighlighter key={index} language="javascript" style={solarizedlight}>
+          <SyntaxHighlighter key={index} language="javascript" style={anOldHope}>
             {part}
           </SyntaxHighlighter>
         );
@@ -99,7 +100,7 @@ export default function ChatComponent() {
   return (
     <div className="w-full h-screen font-sans bg-white p-4 rounded-lg shadow-lg">
       <div className="w-[70%] mx-auto pt-[10%]">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">🗨️ Roma Monstr GPT</h2>
+        <h2 className="flex items-center gap-2 text-2xl font-bold text-gray-800 mb-4"><GiArtificialHive className="w-12 h-12"/> Roma Monstr GPT</h2>
         <div className="border border-gray-300 p-4 h-[60vh] overflow-y-auto mb-4 rounded-lg bg-gray-50">
           {messages.map((msg, idx) => (
             <div key={idx} className={`mb-2 ${msg.sender === "user" ? "text-right" : "text-left"}`}>
